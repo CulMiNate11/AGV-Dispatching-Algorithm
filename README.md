@@ -12,6 +12,7 @@ This is one of the algorithms I have implemented individually in the 2022 surf p
 Basic模式
 Basic模式指在一条路径上仅用一辆AGV进行调度,  是一种最简单的模式并且可以根据参数给出一个普遍的数学公式求解系统的运行时间：
  ![image](https://user-images.githubusercontent.com/99118599/196332779-b57dce8b-f5b3-4d63-ba99-f071130b003f.png)
+
 并且可由此得到AGV运动总距离：
 
  ![image](https://user-images.githubusercontent.com/99118599/196332798-b8a9cda9-16c9-4ddb-8a64-84930571db88.png)
