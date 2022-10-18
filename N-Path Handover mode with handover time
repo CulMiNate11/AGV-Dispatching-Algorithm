@@ -1,0 +1,502 @@
+import java.util.*;
+
+class Back {
+    int num = 0;
+    ArrayList<Double> list = new ArrayList<>();
+    ArrayList<Integer> State = new ArrayList<>();
+}
+
+public class NP最终版 {
+
+    static double time = 0;
+    static int n;
+    static double T;
+    static double v;
+    static double[] path;
+    static int used = 0;
+    static int[] Task;
+    static double currInterval;
+    static ArrayList<Back> backList = new ArrayList<>();    //从长路径序号0开始到段路径
+    static double[] last;       //记录每条路最后一个任务派发的时间
+
+
+    public static void main(String[] args) {
+        ParameterInput();
+        CallHandover();
+        System.out.println("最终时间t为:");
+        System.out.println(time);
+    }
+
+    public static void CallHandover() {
+//        对路径进行升序排列, 但是没考虑数组Task和升序后的数组Path之间的对应关系, 所以输入时应从长到短路径输入.
+//        path = sort(path, 0, path.length - 1);
+
+        //对每条路径进行handover
+        for (int i = 0; i < path.length; i++) {
+            Handover(i);
+        }
+
+        double Max = path[path.length - 1] / v;
+        for (int i = 0; i < path.length - 1; i++) {
+            double temp = 2 * path[i] / v - time - last[i];
+            if (Max < temp) {
+                Max = temp;
+            }
+        }
+        time += Max;
+    }
+
+    public static void Handover(int index) {
+        Back back = new Back();
+        int dispatched = 0;//已派发的任务
+        int completed = 0;
+        int CurUsed = 0;
+        int K = 0;
+        while ((index < path.length - 1 && dispatched < Task[index]) || (index == path.length - 1 && completed < Task[index])) {
+            int event = 0;
+            //定义事件节点节点, 每次nodeTime定义为与时间间隔的差值
+            double nodeTime = T - currInterval;
+
+            //没有车的情况
+            if (CurUsed == 0) {
+
+                //有多余车, 直接派送新AGV
+                if (n - used > 0) {
+                    double waiting = T - currInterval;
+                    used++;
+                    CurUsed++;
+                    dispatched++;
+                    currInterval = 0;
+                    back.list.add(0.0);
+                    back.State.add(1);
+                    time += waiting;
+                    if (index != path.length - 1 && dispatched == Task[index]) {
+                        last[index] = time;
+                    }
+
+                    //更新其他路径的AGV位置
+                    for (int i = 0; i < backList.size(); i++) {
+                        if (!backList.get(i).list.isEmpty()) {
+                            timeHandover(i, waiting);
+                        }
+                    }
+                    continue;
+                }
+
+                //无多余车, 等待其他路径AGV返回
+                else {
+                    double minWaiting = Integer.MAX_VALUE;
+                    for (int i = 0; i < index; i++) {
+                        if (!backList.get(i).list.isEmpty()) {
+                            double findback = findBack(i);
+                            if (findback < minWaiting) {
+                                minWaiting = findback;
+                            }
+                        }
+                    }
+
+                    used++;
+                    CurUsed++;
+                    dispatched++;
+                    currInterval = T;
+                    back.list.add(0.0);
+                    back.State.add(1);
+                    time += minWaiting;
+                    if (index != path.length - 1 && dispatched == Task[index]) {
+                        last[index] = time;
+                    }
+
+                    //更新其他路径的AGV位置
+                    for (int i = 0; i < backList.size(); i++) {
+                        if (!backList.get(i).State.isEmpty()) {
+                            timeHandover(i, minWaiting);
+                        }
+                    }
+                    continue;
+                }
+            }
+
+            if (used == n && nodeTime == 0) {
+                nodeTime = Integer.MAX_VALUE;
+            }
+
+            if (CurUsed == n && nodeTime == 0) {
+                nodeTime = Integer.MAX_VALUE;
+            }
+
+            //left=-1意思为终点位置, right=used意思为原点.
+            int left = -1, right = CurUsed;
+
+            //2个边界碰撞节点
+            //判定终点碰撞
+            double temp = (path[index] - back.list.get(0)) / v;
+            if (back.State.get(0) == 1 && temp < nodeTime) {
+                nodeTime = temp;
+                left = -1;
+                right = 0;
+                event = 1;
+            }
+
+            //判定起点碰撞
+            double temp2 = back.list.get(CurUsed - 1) / v;
+            if (back.State.get(CurUsed - 1) == -1 && temp2 < nodeTime) {
+                if (temp2 < nodeTime) {
+                    nodeTime = temp2;
+                    left = CurUsed - 1;
+                    right = CurUsed;
+                    event = 2;
+                }
+            }
+
+            //判定常规碰撞节点
+            if (CurUsed >= 2) {
+                for (int i = 0; i < CurUsed - 1; i++) {
+                    if (back.State.get(i) == -1) {
+                        if (back.State.get(i + 1) == -1) {
+                            continue;
+                        } else {
+                            double temp3 = (back.list.get(i) - back.list.get(i + 1)) / (2.0 * v);
+                            if (temp3 < nodeTime) {
+                                left = i;
+                                right = i + 1;
+                                nodeTime = temp3;
+                                event = 3;
+                            }
+                        }
+                    }
+                }
+            }
+
+            //判定返回事件节点
+            boolean hasBack = false;
+            {
+                double backtime = Integer.MAX_VALUE;
+                for (int i = 0; i < index; i++) {
+                    if (!backList.get(i).State.isEmpty()) {
+                        double findback = findBack(i);
+                        if (findback < backtime) {
+                            backtime = findback;
+                        }
+                    }
+                }
+                if (nodeTime >= backtime) {
+                    nodeTime = backtime;
+                    hasBack = true;
+                    event = 4;
+                    if (currInterval + nodeTime <= T) {
+                        currInterval += nodeTime;
+                    } else {
+                        currInterval = T;
+                    }
+                }
+                if (hasBack == true) {
+                    //返回事件节点
+                    double dist = nodeTime * v;
+                    //更新当前路径AGV位置
+                    for (int i = 0; i < CurUsed; i++) {
+                        double originDist = back.list.get(i);
+                        if (back.State.get(i) == 1) {
+                            back.list.set(i, originDist + dist);
+                        } else {
+                            back.list.set(i, originDist - dist);
+                        }
+                    }
+                }
+            }
+
+            if (!hasBack) {
+                //调度间隔节点
+                if (left == -1 && right == CurUsed) {
+                    event = 5;
+                    double dist = nodeTime * v;
+                    //更新当前路径AGV位置
+                    for (int i = 0; i < CurUsed; i++) {
+                        double originDist = back.list.get(i);
+                        if (back.State.get(i) == 1) {
+                            back.list.set(i, originDist + dist);
+                        } else {
+                            back.list.set(i, originDist - dist);
+                        }
+                    }
+                    if (used < n) {
+                        if (dispatched < Task[index]) {
+                            back.list.add(CurUsed, 0.0);
+                            back.State.add(CurUsed, 1);
+                            CurUsed++;
+                            used++;
+                            dispatched++;
+                            if (index != path.length - 1 && dispatched == Task[index]) {
+                                last[index] = time;
+                            }
+                        }
+                        currInterval = 0;
+                    } else if (used == n) {
+                        currInterval = T;
+                    }
+                } else {
+                    //更新当前路径所有AGV的运动位置
+                    for (int i = 0; i < CurUsed; i++) {
+                        double temp5 = back.list.get(i);
+                        if (back.State.get(i) == 1) {
+                            back.list.set(i, temp5 + v * nodeTime);
+                        } else {
+                            back.list.set(i, temp5 - v * nodeTime);
+                        }
+                    }
+                    //接下来调整碰撞节点上的AGV的运动方向
+                    if (left != -1 && right != CurUsed) {
+                        //常规碰撞节点
+                        int temp6 = back.State.get(left);
+                        back.State.set(left, -1 * temp6);
+                        int temp7 = back.State.get(right);
+                        back.State.set(right, -1 * temp7);
+                    } else if (left == -1) {
+                        //边界碰撞节点-终点
+                        completed++;
+                        int temp8 = back.State.get(right);
+                        back.State.set(right, -1 * temp8);
+                    } else if (right == CurUsed) {
+                        //边界碰撞节点-原点
+                        back.list.remove(CurUsed - 1);
+                        back.State.remove(CurUsed - 1);
+                        CurUsed--;
+                        used--;
+                    }
+
+                    //currInterval不可能超过调度间隔T值
+                    if (currInterval + nodeTime <= T) {
+                        currInterval += nodeTime;
+                    } else {
+                        currInterval = T;
+                    }
+                }
+            }
+
+            //更新过去路径信息
+            for (int i = 0; i < backList.size(); i++) {
+                if (!backList.get(i).list.isEmpty()) {
+                    timeHandover(i, nodeTime);
+                }
+            }
+
+            //除了最后一个路径要所有任务送达终点结束循环, 其余只要把所有任务派发出去即可结束循环.
+            time += nodeTime;
+//            System.out.println("第" + K + "次循环的事件节点为:");
+//            switch (event) {
+//                case 1:
+//                    System.out.println("EventNode:终点碰撞节点");
+//                    break;
+//                case 2:
+//                    System.out.println("EventNode:起点碰撞节点");
+//                    break;
+//                case 3:
+//                    System.out.println("EventNode:常规碰撞节点");
+//                    break;
+//                case 4:
+//                    System.out.println("EventNode:返回事件节点");
+//                    break;
+//                case 5:
+//                    System.out.println("EventNode:调度间隔节点");
+//                    break;
+//            }
+//            K++;
+//            System.out.println();
+        }
+//        }
+        //将返回的AGV的到达时间储存到BackList中,
+        for (int i = back.list.size() - 1; i >= 0; i--) {
+            double temp = back.list.get(i) / v;
+            back.list.add(temp);
+        }
+        backList.add(back);
+    }
+
+    public static double getTime() {
+        return time;
+    }
+
+    //更新非当前路径的AGV信息
+    //不再有调度时间节点
+    public static void timeHandover(int index, double t) {
+
+        if (t < 0) {
+            return;
+        }
+        //剩余时间
+        double rest = t;
+        Back back = backList.get(index);
+
+        while (rest >= 0) {
+            boolean hasNode = false;
+            int num = back.State.size();
+            if (num == 0) {
+                break;
+            }
+            //定义事件节点
+            double nodeTime = rest;
+
+            //left=-1意思为终点位置, right=num意思为原点.
+            int left = -1, right = num;
+
+            //边界碰撞节点-终点
+            double temp = (path[index] - back.list.get(0)) / v;
+            if (back.State.get(0) == 1 && temp <= nodeTime) {
+                nodeTime = temp;
+                left = -1;
+                right = 0;
+                hasNode = true;
+            }
+
+            //边界碰撞节点-起点
+            double temp2 = back.list.get(num - 1) / v;
+            if (back.State.get(num - 1) == -1 && temp2 <= nodeTime) {
+                nodeTime = temp2;
+                left = num - 1;
+                right = num;
+                hasNode = true;
+            }
+
+            //常规碰撞节点
+            if (num >= 2) {
+                for (int i = 0; i < num - 1; i++) {
+                    if (back.State.get(i) == -1) {
+                        if (back.State.get(i + 1) == -1) {
+                            continue;
+                        } else {
+                            double temp3 = (back.list.get(i) - back.list.get(i + 1)) / (2.0 * v);
+                            if (temp3 <= nodeTime) {
+                                left = i;
+                                right = i + 1;
+                                nodeTime = temp3;
+                                hasNode = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+
+            //若未发现节点, 则直接更新距离并退出循环
+            if (hasNode == false) {
+                for (int i = 0; i < num; i++) {
+                    double temp5 = back.list.get(i);
+                    if (back.State.get(i) == 1) {
+                        back.list.set(i, temp5 + v * rest);
+                    } else {
+                        back.list.set(i, temp5 - v * rest);
+                    }
+                }
+                break;
+            }
+
+            //更新从碰撞节点时间前到碰撞时间节点的所有AGV的运动位置
+            //如果left或right发生改变, 必须要调整相应AGV的状态, 则一定有right-left = 1.
+            //不需要考虑发生在原点的边界碰撞节点
+            for (int i = 0; i < num; i++) {
+                double temp5 = back.list.get(i);
+                if (back.State.get(i) == 1) {
+                    back.list.set(i, temp5 + v * nodeTime);
+                } else {
+                    back.list.set(i, temp5 - v * nodeTime);
+                }
+            }
+            //接下来调整碰撞节点上的两个AGV的运动方向
+            if (left != -1 && right != num) {
+                //常规碰撞节点
+                int temp6 = back.State.get(left);
+                back.State.set(left, -1 * temp6);
+                int temp7 = back.State.get(right);
+                back.State.set(right, -1 * temp7);
+            } else if (left == -1 && right == 0) {
+                //边界碰撞节点-终点
+                int temp8 = back.State.get(right);
+                back.State.set(right, -1 * temp8);
+            } else if (left == num - 1 && right == num) {
+                //边界碰撞节点-起点
+                back.list.remove(num - 1);
+                back.State.remove(num - 1);
+                used--;
+            }
+            rest -= nodeTime;
+        }
+    }
+
+    //找出过去路径上最快返回的车
+    public static double findBack(int index) {
+        Back back = backList.get(index);
+        //只有一辆AGV时
+        if (back.State.size() == 1) {
+            if (back.State.get(0) == -1) {
+                return back.list.get(0) / v;
+            } else {
+                return (2 * path[index] - back.list.get(0)) / v;
+            }
+        } else if (back.State.size() > 1) {
+            //不只一辆AGV时
+            //寻找除第一个车之外返回的AGV
+            for (int i = back.State.size() - 1; i >= 0; i--) {
+                if (back.State.get(i) != null && back.State.get(i) == -1) {
+                    return back.list.get(i) / v;
+                }
+            }
+            //如果都朝终点运动
+            return (+2 * path[index] - back.list.get(0)) / v;
+        }
+
+        return Integer.MAX_VALUE;
+    }
+
+    public static double[] sort(double[] a, int low, int high) {
+        int mid = (low + high) / 2;
+        if (low < high) {
+            sort(a, low, mid);
+            sort(a, mid + 1, high);
+            merge(a, low, mid, high);
+        }
+        return a;
+    }
+
+    public static void merge(double[] a, int low, int mid, int high) {
+        double[] temp = new double[high - low + 1];
+        int i = low;
+        int j = mid + 1;
+        int k = 0;
+        while (i <= mid && j <= high) {
+            temp[k++] = a[i] < a[j] ? a[j++] : a[i++];
+        }
+        while (i <= mid) {
+            temp[k++] = a[i++];
+        }
+        while (j <= high) {
+            temp[k++] = a[j++];
+        }
+        for (int x = 0; x < temp.length; x++) {
+            a[x + low] = temp[x];
+        }
+    }
+
+    public static void ParameterInput() {
+        Scanner sc = new Scanner(System.in);
+        System.out.println("AGV的数量");
+        n = sc.nextInt();
+        System.out.println("AGV的运动速度:");
+        v = sc.nextDouble();
+        System.out.println("AGV派发间隔");
+        T = sc.nextDouble();
+        currInterval = T;
+        System.out.println("路径数量");
+        int PathNum = sc.nextInt();
+        path = new double[PathNum];
+        last = new double[PathNum];
+        Task = new int[PathNum];
+        System.out.println("每条路径的长度");
+        for (int i = 0; i < PathNum; i++) {
+            path[i] = sc.nextDouble();
+        }
+        System.out.println("每条路径的任务数量");
+        for (int i = 0; i < PathNum; i++) {
+            Task[i] = sc.nextInt();
+        }
+
+    }
+}
