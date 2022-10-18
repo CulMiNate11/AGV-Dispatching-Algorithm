@@ -1,0 +1,173 @@
+import java.util.*;
+
+public class AGV调度问题handover模式_单一路径 {
+    static int n; //number of the AGV
+    static int TaskA; //number of the task A,B,C respectively.
+    static double ta; //tc means the transmission time, and ta means the departure interval of AGV.
+    static double v; //the speed of AGV.
+    static double d1;    //the distance between origin and A,B,C respectively.
+    static int used = 0;        //记录已投入使用的AGV数量为used,需要注意的是可以用ueed表示当前使用的最大AGV的车号.
+    static double t = 0;         //记录已运行的时间
+    static int completed = 0;    //已完成的任务
+    static double currInterval = 0;    //距离上次派出AGV的时间间隔
+    static HashMap<Integer, Integer> state = new HashMap<>();
+    //第一位表示车号，第二位表示方向.-1为返回，1为前进.
+    static ArrayList<Double> list = new ArrayList<>();
+    //记录正在路径上的车的往返状态和具体位置.
+
+    public static void main(String[] args) {
+        OneDestination1();
+//        Handover();
+//        System.out.println("最终时间t为:");
+//        System.out.println(t);
+    }
+
+    //采取的思路是：已间隔时间推进系统时间的进步，即每次调用一次"PreSolution"时间就前进ta秒.
+    public static void Handover() {
+        while (completed != TaskA) {
+            //定义事件节点
+            double nodeTime = ta - currInterval;
+            //没有车的情况
+            if (used == 0) {
+                t += ta - currInterval;
+                currInterval = 0;
+                state.put(0, 1);
+                list.add(0.0);
+                used++;
+                nodeTime = ta - currInterval;
+            }
+            //无可用AGV且时间满足调度间隔时,
+            if (used == n && nodeTime == 0) {
+                nodeTime = Integer.MAX_VALUE;
+            }
+
+            //left=-1意思为终点位置, right=used意思为原点.
+            int left = -1, right = used;
+
+            //2个边界碰撞节点
+            //边界碰撞节点-终点
+            double temp = (d1 - list.get(0)) / v;
+            if (state.get(0) == 1 && temp < nodeTime) {
+                nodeTime = temp;
+                left = -1;
+                right = 0;
+            }
+
+            //边界碰撞节点-起点
+            double temp2 = list.get(used - 1) / v;
+            if (state.get(used - 1) == -1 && temp2 < nodeTime) {
+                if (temp2 < nodeTime) {
+                    nodeTime = temp2;
+                    left = used - 1;
+                    right = used;
+                }
+            }
+
+            //常规碰撞节点
+            if (used >= 2) {
+                for (int i = 0; i < used - 1; i++) {
+                    if (state.get(i) == -1) {
+                        if (state.get(i + 1) == -1) {
+                            continue;
+                        } else {
+                            double temp3 = (list.get(i) - list.get(i + 1)) / (2.0 * v);
+                            if (temp3 < nodeTime) {
+                                left = i;
+                                right = i + 1;
+                                nodeTime = temp3;
+                            }
+                        }
+                    }
+                }
+            }
+
+            //调度间隔节点
+            if (left == -1 && right == used) {
+                double dist = nodeTime * v;
+                for (int i = 0; i < used; i++) {
+                    double originDist = list.get(i);
+                    if (state.get(i) == 1) {
+                        list.set(i, originDist + dist);
+                    } else {
+                        list.set(i, originDist - dist);
+                    }
+                }
+                if (used < n) {
+                    list.add(used, 0.0);
+                    state.put(used, 1);
+                    used++;
+                    currInterval = 0;
+                } else if (used == n) {
+                    currInterval = ta;
+                }
+            } else {
+                //更新从碰撞节点时间前到碰撞时间节点的所有AGV的运动位置
+                //如果left或right发生改变, 必须要调整相应AGV的状态, 则一定有right-left = 1.
+                for (int i = 0; i < used; i++) {
+                    double temp5 = list.get(i);
+                    if (state.get(i) == 1) {
+                        list.set(i, temp5 + v * nodeTime);
+                    } else {
+                        list.set(i, temp5 - v * nodeTime);
+                    }
+                }
+                //接下来调整碰撞节点上的两个AGV的运动方向
+                if (left != -1 && right != used) {
+                    int temp6 = state.get(left);
+                    state.put(left, -1 * temp6);
+                    int temp7 = state.get(right);
+                    state.put(right, -1 * temp7);
+                } else if (left == -1) {
+                    //这种碰撞情况, 是AGV与目标点的碰撞. 也就是有AGV成功送达任务了, 所以完成的任务要加1, 正在运送的任务要-1.
+                    int temp8 = state.get(right);
+                    state.put(right, -1 * temp8);
+                    completed++;
+                } else if (right == used) {
+                    //这种碰撞情况, 是AGV与原点的碰撞. 也就是有AGV成功返回了, 所以剩余可用的AGV要随之加1.
+                    list.remove(used - 1);
+                    state.remove(used - 1);
+                    used--;
+                    //当然, 之前因为车不够而不能派发任务给AGV的情况也可以解决了, 直接结束while循环.
+                }
+                if (currInterval + nodeTime <= ta) {
+                    currInterval += nodeTime;
+                } else {
+                    currInterval = ta;
+                }
+            }
+            t += nodeTime;
+        }
+
+        //当所有任务完成, 让所有agv朝原点方向返回, 所以这一段的系统时间由最前面的车决定.
+        t += list.get(0) / v;
+    }
+
+    public static void OneDestination1() {
+        Scanner sc = new Scanner(System.in);
+        System.out.println("AGV的数量:");
+        n = sc.nextInt();
+        System.out.println("每次派发AGV的间隔时间:");
+        ta = sc.nextDouble();
+        currInterval = ta;
+        System.out.println("AGV的运动速度:");
+        v = sc.nextDouble();
+        System.out.println("区域A的任务数量:");
+        TaskA = sc.nextInt();
+        System.out.println("原点至A的距离:");
+        d1 = sc.nextDouble();
+//        for (double i = 0.229; i <= 0.23; i += 0.001) {
+//            n = 6;
+//            ta = 1;
+//            currInterval = 1;
+//            v = i;
+//            TaskA = 6;
+//            t = 0;
+//            used = 0;
+//            completed = 0;
+//            d1 = 100;
+//            Handover();
+//            System.out.println(t);
+//
+//        }
+    }
+}
