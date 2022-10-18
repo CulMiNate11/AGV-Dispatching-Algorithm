@@ -33,3 +33,8 @@ Handover模式指对任意路径的AGV调度数量无上限, 且在路径上的�
 
 可用归纳法证明。
 
+下面给出1-path Handover模式的单一变量研究
+
+![image](https://user-images.githubusercontent.com/99118599/196333224-0ec35b6d-cda1-47a2-b25f-c9a72dbe248c.png)
+
+
