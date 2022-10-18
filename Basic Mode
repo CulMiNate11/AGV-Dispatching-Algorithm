@@ -1,0 +1,29 @@
+import java.util.Scanner;
+
+public class AGV调度问题basic模式一维 {
+
+    static double t;
+    static double v;
+    static double dist;
+    static int Task;
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        System.out.println("请输入AGV的运动速度:");
+        v = sc.nextDouble();
+        System.out.println("请输入区域A的任务数量:");
+        Task = sc.nextInt();
+        System.out.println("请输入原点至A的距离:");
+        dist = sc.nextDouble();
+        System.out.println("最终时间t为:");
+        Solution();
+        System.out.println(t);
+    }
+
+    public static void Solution() {
+        //单次一个来回的时间
+        double t0 = 2 * dist / v;
+        //总共的时间
+        t = t0 * Task;
+    }
+}
