@@ -1,0 +1,257 @@
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.util.ArrayList;
+import java.util.HashMap;
+
+public class TestCalc {
+    public static void main(String[] args) {
+        new Calculator();
+    }
+}
+
+//计算器类
+class Calculator extends Frame {
+    public Calculator() {
+        Frame frame = new Frame();
+        frame.setSize(400, 300);
+        //3个文本框
+        TextField v = new TextField(10);
+        TextField d = new TextField(10);
+        TextField num = new TextField(10);
+        TextField task = new TextField(10);
+        TextField interval = new TextField(10);
+        TextField Path = new TextField(10);
+        TextField res = new TextField(10);
+
+
+        //一个按钮
+        Button button = new Button("N-Path Handover Mode");
+        button.addActionListener(new MyCalculatorListener(v, d, num, task, interval, res));
+        //布局
+        frame.setLayout(new GridLayout(4, 1));
+
+        //
+        Label label = new Label("System Time:");
+        Label label1 = new Label("Velocity:");
+        Label label2 = new Label("Distance:");
+        Label label3 = new Label("Num:");
+        Label label4 = new Label("Task:");
+        Label label5 = new Label("Interval:");
+        Label label6 = new Label("Path:");
+        Panel p0 = new Panel(new FlowLayout());
+        Panel p1 = new Panel(new FlowLayout());
+        Panel p2 = new Panel(new FlowLayout());
+        Panel p3 = new Panel(new FlowLayout());
+        p0.add(label1);
+        p0.add(v);
+        p0.add(label2);
+        p0.add(d);
+        p0.add(label3);
+        p0.add(num);
+        p1.add(label4);
+        p1.add(task);
+        p1.add(label5);
+        p1.add(interval);
+        p1.add(label6);
+        p1.add(Path);
+        p2.add(button);
+        p3.add(label);
+        p3.add(res);
+        frame.add(p0);
+        frame.add(p1);
+        frame.add(p2);
+        frame.add(p3);
+        frame.pack();
+        frame.setVisible(true);
+
+
+//        //3个文本框
+//        TextField v = new TextField(10);
+//        TextField d = new TextField(10);
+//        TextField num = new TextField(10);
+//        TextField task = new TextField(10);
+//        TextField interval = new TextField(10);
+//        TextField res = new TextField(10);
+//
+//
+//        //一个按钮
+//        Button button = new Button("Get System Time");
+//        button.addActionListener(new MyCalculatorListener(v, d, num, task, interval, res));
+//        //布局
+//        setLayout(new FlowLayout());
+//        add(v);
+//        add(d);
+//        add(num);
+//        add(task);
+//        add(interval);
+//        add(button);
+//        add(res);
+//        pack();
+//        setVisible(true);
+
+        //监听事件，监听窗口关闭事件 System.exit()
+        frame.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                //结束程序
+                System.exit(0);
+            }
+        });
+
+    }
+}
+
+//监听器类
+class MyCalculatorListener implements ActionListener {
+    private TextField field;
+    private TextField v;
+    private TextField d1;
+    private TextField ta;
+    private TextField num, TaskA;
+    static int used = 0;
+    int execution = 0;
+    int completed = 0;
+    double currInterval = 0;
+    HashMap<Integer, Integer> state = new HashMap<>();
+
+    static ArrayList<Double> list = new ArrayList<>();
+
+    public MyCalculatorListener(TextField v, TextField d, TextField num, TextField task, TextField interval, TextField res) {
+        this.v = v;
+        this.d1 = d;
+        this.num = num;
+        this.TaskA = task;
+        this.ta = interval;
+        this.field = res;
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        double V = Double.parseDouble(v.getText());
+        double T = Double.parseDouble(ta.getText());
+        double d = Double.parseDouble(d1.getText());
+        int n = Integer.parseInt(num.getText());
+        int task = Integer.parseInt(TaskA.getText());
+        double t = 0;
+
+        if (2 * d / V <= T) {
+            t = t + 2 * n * (d / V);
+            return;
+        }
+
+        while (completed != task) {
+            //定义碰撞节点
+            double nodeTime = T - currInterval;
+            //没有车的情况
+            if (used == 0) {
+                t += T - currInterval;
+                currInterval = 0;
+                state.put(0, 1);
+                list.add(0.0);
+                used++;
+                nodeTime = T - currInterval;
+            }
+
+            if (used == n && nodeTime == 0) {
+                nodeTime = Integer.MAX_VALUE;
+            }
+
+            int left = -1, right = used;
+
+            //终点碰撞节点
+            double temp = (d - list.get(0)) / V;
+            if (state.get(0) == 1 && temp < nodeTime) {
+                nodeTime = temp;
+                left = -1;
+                right = 0;
+            }
+
+            //起点碰撞节点
+            double temp2 = list.get(used - 1) / V;
+            if (state.get(used - 1) == -1 && temp2 < nodeTime) {
+                if (temp2 < nodeTime) {
+                    nodeTime = temp2;
+                    left = used - 1;
+                    right = used;
+                }
+            }
+
+            //遍历路径上的碰撞节点
+            if (used >= 2) {
+                for (int i = 0; i < used - 1; i++) {
+                    if (state.get(i) == -1) {
+                        if (state.get(i + 1) == -1) {
+                            continue;
+                        } else {
+                            double temp3 = (list.get(i) - list.get(i + 1)) / (2.0 * V);
+                            if (temp3 < nodeTime) {
+                                left = i;
+                                right = i + 1;
+                                nodeTime = temp3;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (left == -1 && right == used) {
+                double dist = nodeTime * V;
+                for (int i = 0; i < used; i++) {
+                    double originDist = list.get(i);
+                    if (state.get(i) == 1) {
+                        list.set(i, originDist + dist);
+                    } else {
+                        list.set(i, originDist - dist);
+                    }
+                }
+                if (used < n) {
+                    list.add(used, 0.0);
+                    state.put(used, 1);
+                    used++;
+                    currInterval = 0;
+                } else if (used == n) {
+                    currInterval = T;
+                }
+            } else {
+                //更新从碰撞节点时间前到碰撞时间节点的所有AGV的运动位置
+                for (int i = 0; i < used; i++) {
+                    double temp5 = list.get(i);
+                    if (state.get(i) == 1) {
+                        list.set(i, temp5 + V * nodeTime);
+                    } else {
+                        list.set(i, temp5 - V * nodeTime);
+                    }
+                }
+                //接下来调整碰撞节点上的两个AGV的运动方向
+                if (left != -1 && right != used) {
+                    int temp6 = state.get(left);
+                    state.put(left, -1 * temp6);
+                    int temp7 = state.get(right);
+                    state.put(right, -1 * temp7);
+                } else if (left == -1) {
+                    //与目标点的碰撞
+                    int temp8 = state.get(right);
+                    state.put(right, -1 * temp8);
+                    completed++;
+                    execution--;
+                } else if (right == used) {
+                    //与原点的碰撞
+                    list.remove(used - 1);
+                    state.remove(used - 1);
+                    used--;
+                }
+                if (currInterval + nodeTime <= T) {
+                    currInterval += nodeTime;
+                } else {
+                    currInterval = T;
+                }
+            }
+            t += nodeTime;
+        }
+        t += list.get(0) / V;
+        field.setText("" + t);
+    }
+}
